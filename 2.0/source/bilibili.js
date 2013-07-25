@@ -71,7 +71,7 @@ youkuhtml5playerbookmark2.add(function(core, canPlayM3U8){
         callback({ 'bili': src }, commentInfo);
     };
     var init = function(callback){
-        $('object').remove();
+        $('#bofqi,object,embed').remove();
         var cid = '',
             vid = '';
         if(window.flashvars){
@@ -118,10 +118,39 @@ youkuhtml5playerbookmark2.add(function(core, canPlayM3U8){
         core.jsonp(
             'http://127.0.0.1:3000/bilibili?aid=' + aid + '&page=' + pageno + '&cid=' + cid + '&callback=',
             function(cid, videoInfo, commentInfo){
-                var src = videoInfo.durl[0]['url'];
-                src.indexOf('v.iask.com') >= 0 ? sina(src, callback, commentInfo) :
-                    src.indexOf('v.youku.com') >= 0 ? youku(src, callback, commentInfo) :
-                        src.indexOf('qq.com') >= 0 ? qq(src, callback, commentInfo) : bili(src, callback, commentInfo);
+                var urls = [videoInfo.durl[0]['url']].concat(videoInfo.durl[0]['backup_url']);
+                var len = urls.length;
+                var i = 0;
+                var vPlayer = $('.youkuhtml5playerbookmark2-video')[0];
+                var code = function(){
+                    if(i >= len){
+                        throw new Error('request time out!');
+                    }
+                    if(isNaN(vPlayer.duration)){
+                        var src = urls[i++].replace('android', 'ios').replace('tss=no', 'tss=ios');
+                        console.log("loading src: " + src);
+                        if(i == 1){
+                            if(/v\.iask\.com/i.test(src)){
+                                sina(src, callback, commentInfo)
+                            }
+                            else if(/v\.youku\.com/i.test(src)){
+                                youku(src, callback, commentInfo)
+                            }
+                            else if(/qq\.com/.test(src)){
+                                qq(src, callback, commentInfo)
+                            }
+                            else{
+                                bili(src, callback, commentInfo);
+                            }
+                        }else{
+                            vPlayer.src = src;
+                            vPlayer.load();
+                        }
+                        setTimeout(code, 30000);
+                    }
+                };
+                code();
+//                setTimeout(code, 30000);
             }
         );
     };

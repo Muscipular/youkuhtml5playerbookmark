@@ -37,12 +37,12 @@ var loopRead = function(callback){
 };
 
 loopRead(function(){
-	var ast;
+	var ast=
 	combineFile = '(function(){' + combineFile + '})();';
-	ast = jsp.parse(combineFile);
-	ast = pro.ast_mangle(ast);
-	ast = pro.ast_squeeze(ast);
-	ast = pro.gen_code(ast);
+//	ast = jsp.parse(combineFile);
+//	ast = pro.ast_mangle(ast);
+//	ast = pro.ast_squeeze(ast);
+//	ast = pro.gen_code(ast);
 	fs.writeFile('youkuhtml5playerbookmark2.js', ast, function() {
 		console.log('-----youkuhtml5playerbookmark2.js updated!----');
 	});

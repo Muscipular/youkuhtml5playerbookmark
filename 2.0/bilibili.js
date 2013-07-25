@@ -1,10 +1,13 @@
 var libRequest = require('request');
+var q = require('q');
 var libXml2js = require('xml2js');
 var libUrl = require('url');
 var zlib = require('zlib');
-var libStream = require('stream');
+var util = require('util');
 
-function request(url, cookies, callback) {
+function request(url, cookies) {
+    var args = Array.prototype.slice.call(arguments, 2, arguments.length - 1);
+    var callback = arguments[arguments.length - 1];
     return libRequest({
         url: url,
         encoding: 'binary',
@@ -15,8 +18,14 @@ function request(url, cookies, callback) {
             'Cookie': cookies || ''
 //            'Accept-Encoding': ''
         }
-    }, callback);
+    }, function (e, q, r) {
+        if (callback instanceof Function) {
+            callback.apply(null, [e, q, r].concat(args))
+        }
+    });
 }
+
+var qRequest = q.nbind(request);
 
 exports.render = function (req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -36,6 +45,60 @@ exports.render = function (req, res) {
 //    var cid = -1;
 
 
+    qRequest("http://api.bilibili.tv/view?type=json&appkey=0f38c1b83b2de0a0&id=" + aid + "&page=" + page, cookies)
+        .then(function (result) {
+            var cid = JSON.parse(result[1]).cid;
+            if (!cid || cid == -1) {
+                throw new Error('get cid failed.');
+            }
+            console.log(cid);
+            return {cid: cid};
+        })
+        .then(function (result) {
+            return qRequest("http://interface.bilibili.tv/playurl?otype=json&appkey=0f38c1b83b2de0a0&cid=" + result.cid + "&type=mp4", cookies, result.cid);
+        })
+        .then(function (result) {
+            return  {urlInfo: JSON.parse(result[1]), cid: result[2]};
+        })
+        .then(function (result) {
+            return q.nfcall(function (result, callback) {
+                var url = "http://comment.bilibili.tv/" + result.cid + ".xml";
+                var stream = zlib.createInflateRaw();
+                var d = '';
+                stream.on('data', function (data) {
+                    d += data;
+                });
+                stream.on('end', function () {
+                    libXml2js.parseString(d, function (e, d) {
+                        callback(e, {result: d, cid: result.cid, urlInfo: result.urlInfo});
+                    });
+                });
+                request(url, cookies).pipe(stream);
+                return result;
+            }, result);
+        })
+        .then(function (result) {
+            var d = result.result.i.d;
+            var v = null;
+            for (var i = 0, len = d.length; i < len; i++) {
+                v = d[i];
+                d[i] = {
+                    msg: v['_'],
+                    p: v['$']['p'].split(',')
+                };
+            }
+            return {cid: result.cid, urlInfo: result.urlInfo, comments: d};
+        })
+        .fail(function (e) {
+            console.log(e);
+            res.end(util.format("%s(-1)", callback));
+        })
+        .then(function (result) {
+            console.log('8');
+            res.end(util.format('%s(%d,%j,%j)', callback, result.cid, result.urlInfo, result.comments));
+        });
+/*
+    return;
     res.write(callback);
     res.write("(");
     var getCid = function () {
@@ -88,4 +151,5 @@ exports.render = function (req, res) {
     };
 
     getCid();
+    */
 };
